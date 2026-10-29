@@ -1,0 +1,66 @@
+name: DUBAI PlayKit APK derle
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Proje klasörünü hazırla
+        id: prep
+        run: |
+          if [ -f dubai-playkit.zip ]; then
+            mkdir -p _proj
+            unzip -q -o dubai-playkit.zip -d _proj
+            DIR=$(dirname "$(find _proj -name settings.gradle.kts | head -n 1)")
+          else
+            DIR=.
+          fi
+          echo "Proje klasörü: $DIR"
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Java 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android lisanslarını kabul et
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Gradle kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: APK derle
+        run: gradle --no-daemon -p "${{ steps.prep.outputs.dir }}" assembleDebug
+
+      - name: Birim testlerini çalıştır
+        continue-on-error: true
+        run: gradle --no-daemon -p "${{ steps.prep.outputs.dir }}" testDebugUnitTest
+
+      - name: APK dosyasını hazırla
+        run: cp "${{ steps.prep.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk" DUBAI-PlayKit.apk
+
+      - name: APK'yı yükle (Actions çıktısı)
+        uses: actions/upload-artifact@v4
+        with:
+          name: DUBAI-PlayKit-APK
+          path: DUBAI-PlayKit.apk
+
+      - name: Release olarak yayınla (telefondan kolay indirme)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: DUBAI PlayKit build ${{ github.run_number }}
+          files: DUBAI-PlayKit.apk
